@@ -29,15 +29,19 @@ gh api repos/danylo-kotenko/kontur-quiz/pages
 Перепривязать кнопку и описания:
 
 ```bash
-printf '{"token":"<TOKEN>","url":"https://danylo-kotenko.github.io/kontur-quiz/","metadata":true}' | python3 work/configure_telegram.py
+printf '{"token":"<TOKEN>","url":"https://danylo-kotenko.github.io/kontur-quiz/","metadata":true}' | python3 tools/configure_telegram.py
 ```
 
 Токен бота не хранится в репозитории — брать его у @BotFather.
 
 ## Проверка
 
+Скриншоты прогона падают в `work/` (не в репозитории). Прогнать тот же сценарий против боевого адреса: `QA_BASE=https://danylo-kotenko.github.io/kontur-quiz/ node tools/check.mjs`.
+
 Локальный прогон всего сценария (20 вопросов, подсказки, повтор игры, офлайн, вёрстка телефона и десктопа):
 
 ```bash
-python3 -m http.server 4173 --bind 127.0.0.1 --directory dist & node work/qa/check.mjs
+npm install --prefix tools
+python3 -m http.server 4173 --bind 127.0.0.1 --directory dist &
+node tools/check.mjs
 ```
