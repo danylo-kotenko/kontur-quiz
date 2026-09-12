@@ -120,25 +120,46 @@ function renderQuestion() {
   feedbackArea.setAttribute('aria-live', 'polite');
   feedbackArea.setAttribute('aria-atomic', 'true');
 
+  let resolved = false;
+
   function submit(value, skipped = false) {
-    if (answers[index] || finished) return;
+    if (resolved || finished) return;
     const correct = !skipped && isCorrect(country, value);
-    answers[index] = { country, value, correct, skipped };
+    // Only the first attempt counts: later tries let the player find the country without earning the point.
+    const first = !answers[index];
+    if (first) {
+      answers[index] = { country, value, correct, skipped };
+      score.querySelector('strong').textContent = String(answers.filter(a => a.correct).length);
+      progress.children[index].className = correct ? 'right' : 'wrong';
+    }
     haptic(correct);
-    controls.querySelectorAll('button,input').forEach(control => { control.disabled = true; });
-    controls.querySelector('.secondary')?.remove();
-    controls.querySelector('.hint-area')?.remove();
+    resolved = correct || skipped;
     const input = controls.querySelector('input');
-    if (input) input.classList.toggle('invalid', !correct);
+    if (input) {
+      input.classList.toggle('invalid', !correct);
+      if (!resolved) { input.select(); input.focus({ preventScroll: true }); }
+    }
     controls.querySelectorAll('.choice').forEach((button, i) => {
       const option = currentOptions[i];
       if (correct && option.id === country.id) button.classList.add('selected-correct');
-      else if (!correct && option.name === value) button.classList.add('selected-wrong');
+      else if (!correct && option.name === value) { button.classList.add('selected-wrong'); button.disabled = true; }
     });
-    score.querySelector('strong').textContent = String(answers.filter(a => a.correct).length);
-    progress.children[index].className = correct ? 'right' : 'wrong';
+    if (resolved) {
+      controls.querySelectorAll('button,input').forEach(control => { control.disabled = true; });
+      controls.querySelector('.secondary')?.remove();
+      controls.querySelector('.hint-area')?.remove();
+      if (input) input.blur();
+    }
     const feedback = el('div', `feedback${correct ? '' : ' wrong'}`);
-    feedback.append(el('strong', '', correct ? '✓ Верно!' : skipped ? 'Вопрос пропущен' : 'Не угадал'), el('span', '', correct ? `Это ${country.name}.` : 'Правильный ответ ждёт тебя в конце игры.'));
+    feedback.append(
+      el('strong', '', correct ? first ? '✓ Верно!' : '✓ Верно, но не с первой попытки' : skipped ? 'Вопрос пропущен' : 'Не угадал'),
+      el('span', '', resolved ? `Это ${country.name}.` : isChoice ? 'Этот вариант отпадает — выбери другой.' : 'Попробуй ещё раз, подсказка поможет.')
+    );
+    if (!resolved) {
+      feedbackArea.replaceChildren(feedback);
+      feedback.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+      return;
+    }
     const next = el('button', 'primary', index === TOTAL - 1 ? 'Посмотреть результат →' : 'Следующая страна →');
     next.type = 'button';
     next.addEventListener('click', () => {
@@ -146,7 +167,6 @@ function renderQuestion() {
       else { index++; renderQuestion(); }
     });
     feedbackArea.replaceChildren(feedback, next);
-    if (input) input.blur();
     next.focus({ preventScroll: true });
     next.scrollIntoView({ block: 'nearest', behavior: 'instant' });
   }
@@ -177,9 +197,9 @@ function renderQuestion() {
     const check = el('button', 'primary', 'Проверить ответ');
     check.type = 'submit';
     check.disabled = true;
-    input.addEventListener('input', () => { check.disabled = input.value.trim().length === 0; });
+    input.addEventListener('input', () => { check.disabled = input.value.trim().length === 0; input.classList.remove('invalid'); });
     form.addEventListener('submit', event => { event.preventDefault(); if (input.value.trim()) submit(input.value.trim()); });
-    const skip = el('button', 'secondary', 'Не знаю — пропустить вопрос');
+    const skip = el('button', 'secondary', 'Не знаю — показать ответ');
     skip.type = 'button';
     skip.addEventListener('click', () => submit('', true));
     form.append(label, input, hint, buildHint(country), check, skip);
