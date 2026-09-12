@@ -96,6 +96,7 @@ for(let i=0;i<20;i++) {
   }
   assert.match(await page.locator('.feedback').innerText(),/Верно!/);
   assert.equal(await page.locator('.score strong').innerText(),String(i+1));
+  assert.equal(await page.locator('.progress span').nth(i).getAttribute('class'),'right');
   await page.locator('.feedback-area .primary').click();
 }
 assert.match(await page.locator('.result-total').innerText(),/20 \/ 20/);
@@ -110,17 +111,30 @@ for(let i=0;i<20;i++) {
     const country=countries.find(c=>c.path===path);
     const buttons=await page.locator('.choice').all();
     for(const button of buttons) {if(!(await button.innerText()).includes(country.name)){await button.click();break;}}
-    assert.equal(await page.locator('.correct-answer').count(),1);
     assert.equal(await page.locator('.selected-wrong').count(),1);
+    // A wrong pick must not light up the right option or spell out the name.
+    assert.equal(await page.locator('.correct-answer,.selected-correct').count(),0);
+    assert(!(await page.locator('.feedback').innerText()).includes(country.name));
   } else if(i===5) {
+    const path=await page.locator('.map-shape path').getAttribute('d');
+    const country=countries.find(c=>c.path===path);
     await page.getByRole('textbox').fill('<img src=x onerror=alert(1)>');
     await page.getByRole('textbox').press('Enter');
-  } else {await page.getByRole('button',{name:'Не знаю — показать ответ'}).click();}
+    assert(!(await page.locator('.answer-panel').innerText()).includes(country.name));
+  } else {
+    const path=await page.locator('.map-shape path').getAttribute('d');
+    const country=countries.find(c=>c.path===path);
+    await page.getByRole('button',{name:'Не знаю — пропустить вопрос'}).click();
+    assert(!(await page.locator('.answer-panel').innerText()).includes(country.name));
+  }
   assert.equal(await page.locator('.score strong').innerText(),'0');
+  assert.equal(await page.locator('.progress span').nth(i).getAttribute('class'),'wrong');
+  assert.equal(await page.locator('.progress .right').count(),0);
   await page.locator('.feedback-area .primary').click();
 }
 assert.match(await page.locator('.result-total').innerText(),/0 \/ 20/);
 await page.locator('summary').click();
+for(const country of countries) assert(await page.locator('.review-list').innerText().then(t=>t.includes(country.name)));
 assert.equal(await page.locator('.review-list img').count(),0);
 assert.match(await page.locator('.review-list').innerText(),/<img src=x onerror=alert\(1\)>/);
 
@@ -140,4 +154,4 @@ await page.getByRole('button',{name:'Попробовать снова'}).click(
 await page.locator('.choice').first().waitFor();
 assert.deepEqual(errors,[]);
 await browser.close();
-console.log('PASS: 20 questions; 5 choices + 15 text; hints (length then random letters, last one kept secret); 20/20 and 0/20; aliases; replay; escaping; offline retry; phone/desktop layout; no browser errors.');
+console.log('PASS: 20 questions; 5 choices + 15 text; hints (length then random letters, last one kept secret); wrong answers stay unrevealed until the results but still score red; 20/20 and 0/20; aliases; replay; escaping; offline retry; phone/desktop layout; no browser errors.');
