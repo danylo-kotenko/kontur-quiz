@@ -105,28 +105,39 @@ assert.equal(await page.locator('.review-item').count(),20);
 await page.screenshot({path:shots+'/mobile-results.png',fullPage:true});
 await page.getByRole('button',{name:'Сыграть ещё раз'}).click();
 assert.equal(await page.locator('.score strong').innerText(),'0');
+const shape=async()=>{const d=await page.locator('.map-shape path').getAttribute('d');return countries.find(c=>c.path===d);};
 for(let i=0;i<20;i++) {
+  const country=await shape();
   if(i<5){
-    const path=await page.locator('.map-shape path').getAttribute('d');
-    const country=countries.find(c=>c.path===path);
-    const buttons=await page.locator('.choice').all();
-    for(const button of buttons) {if(!(await button.innerText()).includes(country.name)){await button.click();break;}}
-    assert.equal(await page.locator('.selected-wrong').count(),1);
-    // A wrong pick must not light up the right option or spell out the name.
-    assert.equal(await page.locator('.correct-answer,.selected-correct').count(),0);
-    assert(!(await page.locator('.feedback').innerText()).includes(country.name));
+    // Every wrong pick only removes itself; the question stays open until the right one is found.
+    for(let miss=0;miss<3;miss++) {
+      const wrong=page.locator('.choice:not(:disabled)').filter({hasNotText:country.name}).first();
+      await wrong.click();
+      assert.equal(await page.locator('.selected-wrong').count(),miss+1);
+      assert.equal(await page.locator('.choice:disabled').count(),miss+1);
+      assert.equal(await page.locator('.feedback-area .primary').count(),0);
+      assert(!(await page.locator('.feedback').innerText()).includes(country.name));
+      assert.equal(await page.locator('.progress span').nth(i).getAttribute('class'),'wrong');
+      assert.equal(await page.locator('.score strong').innerText(),'0');
+    }
+    await page.getByRole('button',{name:new RegExp(country.name+'$')}).click();
+    assert.equal(await page.locator('.selected-correct').count(),1);
+    assert.match(await page.locator('.feedback').innerText(),/не с первой попытки/);
   } else if(i===5) {
-    const path=await page.locator('.map-shape path').getAttribute('d');
-    const country=countries.find(c=>c.path===path);
     await page.getByRole('textbox').fill('<img src=x onerror=alert(1)>');
     await page.getByRole('textbox').press('Enter');
+    assert.equal(await page.locator('.feedback-area .primary').count(),0);
     assert(!(await page.locator('.answer-panel').innerText()).includes(country.name));
+    assert.equal(await page.locator('.hint-area').count(),1,'hints must survive a wrong guess');
+    assert.equal(await page.getByRole('textbox').isDisabled(),false);
+    await page.getByRole('textbox').fill(country.name);
+    await page.getByRole('textbox').press('Enter');
+    assert.match(await page.locator('.feedback').innerText(),/не с первой попытки/);
   } else {
-    const path=await page.locator('.map-shape path').getAttribute('d');
-    const country=countries.find(c=>c.path===path);
-    await page.getByRole('button',{name:'Не знаю — пропустить вопрос'}).click();
-    assert(!(await page.locator('.answer-panel').innerText()).includes(country.name));
+    await page.getByRole('button',{name:'Не знаю — показать ответ'}).click();
+    assert.match(await page.locator('.feedback').innerText(),new RegExp('Это '+country.name));
   }
+  // Guessing late never earns the point back.
   assert.equal(await page.locator('.score strong').innerText(),'0');
   assert.equal(await page.locator('.progress span').nth(i).getAttribute('class'),'wrong');
   assert.equal(await page.locator('.progress .right').count(),0);
@@ -154,4 +165,4 @@ await page.getByRole('button',{name:'Попробовать снова'}).click(
 await page.locator('.choice').first().waitFor();
 assert.deepEqual(errors,[]);
 await browser.close();
-console.log('PASS: 20 questions; 5 choices + 15 text; hints (length then random letters, last one kept secret); wrong answers stay unrevealed until the results but still score red; 20/20 and 0/20; aliases; replay; escaping; offline retry; phone/desktop layout; no browser errors.');
+console.log('PASS: 20 questions; 5 choices + 15 text; hints (length then random letters, last one kept secret); retry until solved, a late hit still scores red; 20/20 and 0/20; aliases; replay; escaping; offline retry; phone/desktop layout; no browser errors.');
