@@ -1,4 +1,4 @@
-import { TOTAL, CHOICE_COUNT, makeRound, optionsFor, isCorrect } from './game.js';
+import { TOTAL, CHOICE_COUNT, makeRound, optionsFor, isCorrect, letterSlots, hintReveal, hintsLeft, hintSummary } from './game.js';
 
 const app = document.getElementById('app');
 const telegram = window.Telegram?.WebApp;
@@ -48,6 +48,45 @@ function begin(replay = false) {
   window.scrollTo({top: 0, behavior: 'instant'});
 }
 
+// The hint field for the text questions: first press shows the length, every next one opens a random letter.
+function buildHint(country) {
+  const area = el('div', 'hint-area');
+  const panel = el('div', 'hint-panel');
+  panel.hidden = true;
+  const mask = el('div', 'hint-mask');
+  mask.setAttribute('aria-hidden', 'true');
+  const summary = el('p', 'hint-count');
+  summary.setAttribute('aria-live', 'polite');
+  panel.append(mask, summary);
+  const button = el('button', 'hint-button');
+  button.type = 'button';
+  button.append(el('span', 'hint-icon', '💡'), el('span', 'hint-label', 'Подсказка'));
+  const slots = new Set(letterSlots(country.name));
+  let revealed = [], used = 0;
+
+  function paint() {
+    const chars = [...country.name];
+    mask.replaceChildren(...chars.map((char, i) => {
+      if (!slots.has(i)) return char === ' ' ? el('span', 'hint-gap') : el('span', 'hint-punct', char);
+      const open = revealed.includes(i);
+      return el('span', `hint-slot${open ? ' filled' : ''}`, open ? char : '');
+    }));
+    summary.textContent = hintSummary(country.name, revealed);
+    panel.hidden = false;
+    const left = hintsLeft(country.name, revealed);
+    button.querySelector('.hint-label').textContent = left > 0 ? 'Открыть ещё букву' : 'Больше подсказок нет';
+    button.disabled = left === 0;
+  }
+
+  button.addEventListener('click', () => {
+    used++;
+    if (used > 1) revealed = hintReveal(country.name, revealed);
+    paint();
+  });
+  area.append(panel, button);
+  return area;
+}
+
 function renderQuestion() {
   const country = round[index];
   const isChoice = index < CHOICE_COUNT;
@@ -71,11 +110,11 @@ function renderQuestion() {
   mapCard.append(el('span', 'map-meta', `КОНТУР № ${String(index + 1).padStart(2, '0')}`), north, map(country));
   if (country.note) mapCard.append(el('span', 'map-note', country.note));
   const panel = el('div', 'answer-panel');
-  panel.append(el('span', `phase${isChoice ? '' : ' text-phase'}`, isChoice ? '01—05 · С ВАРИАНТАМИ' : '06—20 · БЕЗ ПОДСКАЗОК'));
+  panel.append(el('span', `phase${isChoice ? '' : ' text-phase'}`, isChoice ? '01—05 · С ВАРИАНТАМИ' : '06—20 · БЕЗ ВАРИАНТОВ'));
   const heading = el('h1', '', 'Что это за страна?');
   heading.tabIndex = -1;
   panel.append(heading, el('p', 'instruction', isChoice ? 'Посмотри на контур и выбери ответ.' : 'Напиши название страны на русском.'));
-  if (index === CHOICE_COUNT) panel.append(el('p', 'transition-notice', 'Разминка позади! В следующих 15 вопросах вариантов ответа не будет.'));
+  if (index === CHOICE_COUNT) panel.append(el('p', 'transition-notice', 'Разминка позади! В следующих 15 вопросах вариантов ответа не будет — но есть подсказки: первая покажет количество букв, каждая следующая откроет случайную букву.'));
   const controls = el('div', 'answer-controls');
   const feedbackArea = el('div', 'feedback-area');
   feedbackArea.setAttribute('aria-live', 'polite');
@@ -88,6 +127,7 @@ function renderQuestion() {
     haptic(correct);
     controls.querySelectorAll('button,input').forEach(control => { control.disabled = true; });
     controls.querySelector('.secondary')?.remove();
+    controls.querySelector('.hint-area')?.remove();
     const input = controls.querySelector('input');
     if (input) input.classList.toggle('invalid', !correct);
     controls.querySelectorAll('.choice').forEach((button, i) => {
@@ -142,7 +182,7 @@ function renderQuestion() {
     const skip = el('button', 'secondary', 'Не знаю — показать ответ');
     skip.type = 'button';
     skip.addEventListener('click', () => submit('', true));
-    form.append(label, input, hint, check, skip);
+    form.append(label, input, hint, buildHint(country), check, skip);
     controls.append(form);
   }
   panel.append(controls, feedbackArea);
