@@ -132,13 +132,13 @@ function renderQuestion() {
     if (input) input.classList.toggle('invalid', !correct);
     controls.querySelectorAll('.choice').forEach((button, i) => {
       const option = currentOptions[i];
-      if (option.id === country.id) button.classList.add(correct ? 'selected-correct' : 'correct-answer');
-      else if (option.name === value) button.classList.add('selected-wrong');
+      if (correct && option.id === country.id) button.classList.add('selected-correct');
+      else if (!correct && option.name === value) button.classList.add('selected-wrong');
     });
     score.querySelector('strong').textContent = String(answers.filter(a => a.correct).length);
     progress.children[index].className = correct ? 'right' : 'wrong';
     const feedback = el('div', `feedback${correct ? '' : ' wrong'}`);
-    feedback.append(el('strong', '', correct ? '✓ Верно!' : skipped ? 'Этот контур — на будущее' : 'Не совсем. Запоминаем!'), el('span', '', correct ? `Это ${country.name}.` : `Правильный ответ: ${country.name}.`));
+    feedback.append(el('strong', '', correct ? '✓ Верно!' : skipped ? 'Вопрос пропущен' : 'Не угадал'), el('span', '', correct ? `Это ${country.name}.` : 'Правильный ответ ждёт тебя в конце игры.'));
     const next = el('button', 'primary', index === TOTAL - 1 ? 'Посмотреть результат →' : 'Следующая страна →');
     next.type = 'button';
     next.addEventListener('click', () => {
@@ -179,7 +179,7 @@ function renderQuestion() {
     check.disabled = true;
     input.addEventListener('input', () => { check.disabled = input.value.trim().length === 0; });
     form.addEventListener('submit', event => { event.preventDefault(); if (input.value.trim()) submit(input.value.trim()); });
-    const skip = el('button', 'secondary', 'Не знаю — показать ответ');
+    const skip = el('button', 'secondary', 'Не знаю — пропустить вопрос');
     skip.type = 'button';
     skip.addEventListener('click', () => submit('', true));
     form.append(label, input, hint, buildHint(country), check, skip);
@@ -214,7 +214,7 @@ function renderResults() {
   restart.addEventListener('click', () => begin(true));
   top.append(track, restart);
   const review = el('details', 'review');
-  review.append(el('summary', '', 'Посмотреть все ответы'));
+  review.append(el('summary', '', 'Посмотреть правильные ответы'));
   const list = el('ol', 'review-list');
   answers.forEach((answer, i) => {
     const item = el('li', 'review-item');
