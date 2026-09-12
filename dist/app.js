@@ -233,7 +233,7 @@ function renderResults() {
 }
 
 try {
-  const response = await fetch('/assets/countries.json');
+  const response = await fetch(new URL('assets/countries.json', import.meta.url));
   if (!response.ok) throw new Error('Failed to load maps');
   countries = await response.json();
   begin();
